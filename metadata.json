@@ -1,0 +1,5 @@
+{
+  "name": "SILL — Sistema Inteligente de Logística Local",
+  "description": "A bilingual local delivery management system for logistics companies, featuring roles for managers, drivers, and customers.",
+  "requestFramePermissions": ["geolocation"]
+}
