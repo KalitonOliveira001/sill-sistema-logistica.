@@ -1,59 +1,14 @@
+import Papa from 'papaparse';
+
 /**
- * SILL — Serviço de integração com Google Sheets
- * Lê e escreve dados na planilha do cliente
+ * SILL — Sistema Inteligente de Logística Local
+ * Conexão via Link Público (CSV) e Apps Script
  */
 
-const API_KEY = 'AIzaSyDpT6oXIYEURu19f4970JWE8JPgCTXS3uQ';
-const SHEET_ID = '1qQz2DVIFUEUo3oA-u7n2md7r-ggzRG0m';
-const BASE_URL = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}`;
+// URL que você publicou na web (CSV)
+const PUBLIC_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTjijoAtdJuhYip-xHT0RJjzgV-JRmWFfuoqvFf_CZDkgkS_jRdI2UPJHcf_g-5Tw/pub?output=csv";
 
-// ── Nomes das abas na planilha ──────────────────────────────────
-const ABAS = {
-  usuarios:  '👥 Usuários',
-  entregas:  '📦 Entregas',
-  clientes:  '👤 Clientes',
-  galpoes:   '🏭 Galpões',
-  zonas:     '🗺️ Zonas Quixadá',
-  kpis:      '📈 KPIs',
-};
-
-// ── Helper: buscar intervalo da planilha ───────────────────────
-async function getRange(aba: string, range: string): Promise<any[][]> {
-  const encodedAba = encodeURIComponent(`${aba}!${range}`);
-  const url = `${BASE_URL}/values/${encodedAba}?key=${API_KEY}`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Erro ao ler planilha: ${res.statusText}`);
-  const data = await res.json();
-  return data.values || [];
-}
-
-// ── Helper: escrever em intervalo da planilha ──────────────────
-async function setRange(aba: string, range: string, values: any[][]): Promise<void> {
-  const encodedAba = encodeURIComponent(`${aba}!${range}`);
-  const url = `${BASE_URL}/values/${encodedAba}?valueInputOption=USER_ENTERED&key=${API_KEY}`;
-  const res = await fetch(url, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values }),
-  });
-  if (!res.ok) throw new Error(`Erro ao escrever planilha: ${res.statusText}`);
-}
-
-// ── Helper: adicionar linha na planilha ────────────────────────
-async function appendRow(aba: string, range: string, values: any[][]): Promise<void> {
-  const encodedAba = encodeURIComponent(`${aba}!${range}`);
-  const url = `${BASE_URL}/values/${encodedAba}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS&key=${API_KEY}`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ values }),
-  });
-  if (!res.ok) throw new Error(`Erro ao adicionar linha: ${res.statusText}`);
-}
-
-// ══════════════════════════════════════════════════════════════
-// USUÁRIOS
-// ══════════════════════════════════════════════════════════════
+// ── Interfaces ──────────────────────────────────────────────────
 export interface SheetUser {
   id: string;
   name: string;
@@ -67,32 +22,10 @@ export interface SheetUser {
   ativo?: string;
 }
 
-export async function fetchUsuarios(): Promise<SheetUser[]> {
-  // Linha 2 em diante (linha 1 é cabeçalho)
-  const rows = await getRange(ABAS.usuarios, 'A3:L200');
-  return rows
-    .filter(r => r[0] && r[10] !== 'NÃO') // tem ID e está ativo
-    .map(r => ({
-      id:       r[0] || '',
-      name:     r[1] || '',
-      role:     (r[2] === 'gestor' ? 'manager' : 'driver') as 'manager' | 'driver',
-      pin:      String(r[3] || ''),
-      whatsapp: r[4] || '',
-      email:    r[5] || '',
-      galpao:   r[6] || '',
-      veiculo:  r[7] || '',
-      placa:    r[8] || '',
-      ativo:    r[10] || 'SIM',
-    }));
-}
-
-// ══════════════════════════════════════════════════════════════
-// ENTREGAS
-// ══════════════════════════════════════════════════════════════
 export interface SheetDelivery {
-  id: string;          // linha index como ID interno
-  packageId: string;   // Cód. Rastreio
-  pedidoId: string;    // Cód. Pedido
+  id: string;
+  packageId: string;
+  pedidoId: string;
   customerName: string;
   customerPhone: string;
   address: string;
@@ -109,129 +42,89 @@ export interface SheetDelivery {
   photoProof?: string;
   tentativas?: string;
   motivoInsucesso?: string;
-  rowIndex: number;    // índice real na planilha (para updates)
+  rowIndex: number;
 }
 
-// Mapeia status em português para o padrão do app
+// ── Funções de Leitura (Via PapaParse - Sem Erro 404) ────────────
+
+/**
+ * Busca todos os dados da planilha de uma vez só de forma otimizada
+ */
+const fetchAllSheetData = (): Promise<any[]> => {
+  return new Promise((resolve, reject) => {
+    Papa.parse(PUBLIC_SHEET_URL, {
+      download: true,
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => resolve(results.data),
+      error: (error) => reject(error)
+    });
+  });
+};
+
+export async function fetchUsuarios(): Promise<SheetUser[]> {
+  const data = await fetchAllSheetData();
+  // Filtra apenas o que parece ser usuário (ajuste os nomes das colunas se necessário)
+  return data
+    .filter(r => r['ID'] || r['id']) 
+    .map(r => ({
+      id: r['ID'] || r['id'] || '',
+      name: r['Nome'] || r['name'] || '',
+      role: (r['Função'] === 'gestor' ? 'manager' : 'driver'),
+      pin: String(r['PIN'] || r['pin'] || ''),
+      whatsapp: r['WhatsApp'] || '',
+      email: r['Email'] || '',
+      ativo: r['Ativo'] || 'SIM',
+    }));
+}
+
+export async function fetchEntregas(): Promise<SheetDelivery[]> {
+  const data = await fetchAllSheetData();
+  return data
+    .filter(r => r['Cód. Pedido'] || r['pedidoId'])
+    .map((r, idx) => ({
+      id: String(idx + 1),
+      pedidoId: r['Cód. Pedido'] || '',
+      packageId: r['Cód. Rastreio'] || r['Cód. Pedido'] || '',
+      customerName: r['Cliente'] || '',
+      customerPhone: r['Telefone'] || '',
+      address: r['Endereço'] || '',
+      bairro: r['Bairro'] || '',
+      cep: r['CEP'] || '',
+      status: mapStatus(r['Status'] || 'pendente'),
+      rowIndex: idx + 3,
+    }));
+}
+
+// ── Helpers de Status ──────────────────────────────────────────
 function mapStatus(s: string): SheetDelivery['status'] {
   const map: Record<string, SheetDelivery['status']> = {
-    'pendente':   'pending',
-    'em rota':    'in-transit',
-    'entregue':   'delivered',
-    'atrasado':   'delayed',
-    'insucesso':  'delayed',
+    'pendente': 'pending',
+    'em rota': 'in-transit',
+    'entregue': 'delivered',
+    'atrasado': 'delayed',
+    'insucesso': 'delayed',
   };
   return map[s?.toLowerCase()] || 'pending';
 }
 
-// Mapeia status do app para português
-function mapStatusPT(s: string): string {
-  const map: Record<string, string> = {
-    'pending':    'pendente',
-    'in-transit': 'em rota',
-    'delivered':  'entregue',
-    'delayed':    'atrasado',
-  };
-  return map[s] || 'pendente';
-}
+// ── Funções de Escrita (Importante!) ───────────────────────────
+/**
+ * Para que estas funções funcionem, você precisará colar o código do 
+ * Apps Script (enviado anteriormente) na sua planilha e colocar a URL aqui.
+ */
+const APPS_SCRIPT_URL = "COLE_AQUI_A_URL_DO_SEU_APPS_SCRIPT_APOS_IMPLANTAR";
 
-export async function fetchEntregas(): Promise<SheetDelivery[]> {
-  const rows = await getRange(ABAS.entregas, 'A3:U500');
-  return rows
-    .filter(r => r[0]) // tem código de pedido
-    .map((r, idx) => ({
-      id:            String(idx + 1),
-      pedidoId:      r[0]  || '',
-      packageId:     r[1]  || r[0] || '',  // Cód. Rastreio ou Pedido
-      customerName:  r[3]  || '',
-      customerPhone: r[4]  || '',
-      address:       `${r[5] || ''}, ${r[6] || ''} - Quixadá, CE`,
-      bairro:        r[6]  || '',
-      cep:           r[7]  || '',
-      galpaoOrigem:  r[8]  || '',
-      driverId:      r[9]  || '',
-      driverName:    r[10] || '',
-      status:        mapStatus(r[11] || 'pendente'),
-      startTime:     r[12] && r[12] !== '—' ? r[12] : undefined,
-      endTime:       r[13] && r[13] !== '—' ? r[13] : undefined,
-      lat:           r[15] || '',
-      lng:           r[16] || '',
-      photoProof:    r[17] || '',
-      tentativas:    r[18] || '0',
-      motivoInsucesso: r[19] || '',
-      rowIndex:      idx + 3, // linha real na planilha (começa na 3)
-    }));
-}
-
-// Atualiza status de uma entrega na planilha
-export async function updateEntregaStatus(
-  rowIndex: number,
-  status: string,
-  driverId?: string,
-  driverName?: string,
-  startTime?: string,
-  endTime?: string,
-  lat?: string,
-  lng?: string,
-): Promise<void> {
-  const statusPT = mapStatusPT(status);
-  const now = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-  // Coluna L = status (índice 11 = coluna 12 = L)
-  await setRange(ABAS.entregas, `J${rowIndex}:Q${rowIndex}`, [[
-    driverId   || '—',
-    driverName || '—',
-    statusPT,
-    startTime  || (status === 'in-transit' ? now : '—'),
-    endTime    || (status === 'delivered'  ? now : '—'),
-    '',  // tempo calculado pela fórmula
-    lat  || '—',
-    lng  || '—',
-  ]]);
-}
-
-// ══════════════════════════════════════════════════════════════
-// CICLO MENSAL — Verificação e renovação automática
-// ══════════════════════════════════════════════════════════════
-
-const CYCLE_KEY = 'sill_cycle_start';
-
-export function getCycleInfo(): { startDate: Date; daysLeft: number; isExpired: boolean } {
-  const stored = localStorage.getItem(CYCLE_KEY);
-  let startDate: Date;
-
-  if (stored) {
-    startDate = new Date(stored);
-  } else {
-    // Primeiro uso: inicia ciclo agora
-    startDate = new Date();
-    localStorage.setItem(CYCLE_KEY, startDate.toISOString());
+export async function updateEntregaStatus(payload: any): Promise<void> {
+  if (APPS_SCRIPT_URL.includes("COLE_AQUI")) {
+    console.warn("URL do Apps Script não configurada. A escrita não funcionará.");
+    return;
   }
 
-  const now = new Date();
-  const diffDays = Math.floor((now.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-  const daysLeft = 31 - diffDays;
-  const isExpired = diffDays >= 31;
-
-  return { startDate, daysLeft, isExpired };
-}
-
-// Renova o ciclo: arquiva entregas antigas e limpa a aba
-export async function renewCycle(): Promise<void> {
-  // 1. Busca todas as entregas atuais
-  const entregas = await fetchEntregas();
-
-  // 2. Cria nova aba de arquivo com timestamp (via API batchUpdate seria necessário OAuth)
-  //    Como usamos API Key (somente leitura para escrita via PUT), apenas limpamos as linhas de dados
-  //    e mantemos o cabeçalho. Para arquivamento real precisaria de OAuth2.
-  //    Por ora: limpa os dados das entregas (linhas 3 em diante), preservando cabeçalho
-
-  if (entregas.length > 0) {
-    // Cria array de linhas vazias para sobrescrever dados antigos
-    const emptyRows = entregas.map(() => Array(21).fill(''));
-    await setRange(ABAS.entregas, `A3:U${entregas.length + 2}`, emptyRows);
-  }
-
-  // 3. Reinicia o ciclo
-  localStorage.setItem(CYCLE_KEY, new Date().toISOString());
+  await fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 }
