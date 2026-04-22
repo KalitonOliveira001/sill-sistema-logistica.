@@ -28,6 +28,7 @@ import 'leaflet/dist/leaflet.css';
 import { Language, User, Delivery, UserRole, DeliveryStatus } from './types';
 import { translations } from './translations';
 import { mockUsers, mockDeliveries } from './mockData';
+import { fetchUsuarios, fetchEntregas } from './googleSheets';
 
 export default function App() {
   const [lang, setLang] = useState<Language>('pt');
