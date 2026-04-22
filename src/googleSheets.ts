@@ -2,11 +2,14 @@ import Papa from 'papaparse';
 
 /**
  * SILL — Sistema Inteligente de Logística Local
- * Conexão via Link Público (CSV) e Apps Script
+ * URLs das abas específicas publicadas em CSV
  */
 
-// URL que você publicou na web (CSV)
-const PUBLIC_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTjijoAtdJuhYip-xHT0RJjzgV-JRmWFfuoqvFf_CZDkgkS_jRdI2UPJHcf_g-5Tw/pub?output=csv";
+// Link da aba 👥 Usuários (conforme seu envio anterior)
+const USERS_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTjijoAtdJuhYip-xHT0RJjzgV-JRmWFfuoqvFf_CZDkgkS_jRdI2UPJHcf_g-5Tw/pub?gid=256076925&single=true&output=csv";
+
+// Link da aba 📦 Entregas (conforme seu envio mais recente)
+const DELIVERIES_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTjijoAtdJuhYip-xHT0RJjzgV-JRmWFfuoqvFf_CZDkgkS_jRdI2UPJHcf_g-5Tw/pub?gid=994745382&single=true&output=csv";
 
 // ── Interfaces ──────────────────────────────────────────────────
 export interface SheetUser {
@@ -16,43 +19,27 @@ export interface SheetUser {
   pin: string;
   whatsapp?: string;
   email?: string;
-  galpao?: string;
-  veiculo?: string;
-  placa?: string;
   ativo?: string;
 }
 
 export interface SheetDelivery {
   id: string;
-  packageId: string;
   pedidoId: string;
+  packageId: string;
   customerName: string;
   customerPhone: string;
   address: string;
   bairro: string;
   cep: string;
-  galpaoOrigem: string;
-  driverId: string;
-  driverName: string;
   status: 'pending' | 'in-transit' | 'delivered' | 'delayed';
-  startTime?: string;
-  endTime?: string;
-  lat?: string;
-  lng?: string;
-  photoProof?: string;
-  tentativas?: string;
-  motivoInsucesso?: string;
   rowIndex: number;
 }
 
-// ── Funções de Leitura (Via PapaParse - Sem Erro 404) ────────────
+// ── Funções de Leitura ──────────────────────────────────────────
 
-/**
- * Busca todos os dados da planilha de uma vez só de forma otimizada
- */
-const fetchAllSheetData = (): Promise<any[]> => {
+const fetchSheetData = (url: string): Promise<any[]> => {
   return new Promise((resolve, reject) => {
-    Papa.parse(PUBLIC_SHEET_URL, {
+    Papa.parse(url, {
       download: true,
       header: true,
       skipEmptyLines: true,
@@ -63,40 +50,35 @@ const fetchAllSheetData = (): Promise<any[]> => {
 };
 
 export async function fetchUsuarios(): Promise<SheetUser[]> {
-  const data = await fetchAllSheetData();
-  // Filtra apenas o que parece ser usuário (ajuste os nomes das colunas se necessário)
-  return data
-    .filter(r => r['ID'] || r['id']) 
-    .map(r => ({
-      id: r['ID'] || r['id'] || '',
-      name: r['Nome'] || r['name'] || '',
-      role: (r['Função'] === 'gestor' ? 'manager' : 'driver'),
-      pin: String(r['PIN'] || r['pin'] || ''),
-      whatsapp: r['WhatsApp'] || '',
-      email: r['Email'] || '',
-      ativo: r['Ativo'] || 'SIM',
-    }));
+  const data = await fetchSheetData(USERS_SHEET_URL);
+  return data.map(r => ({
+    id: r['ID Usuário'] || '',
+    name: r['Nome Completo'] || '',
+    role: (r['Função']?.toLowerCase() === 'gestor' ? 'manager' : 'driver'),
+    pin: String(r['PIN (senha)'] || ''),
+    whatsapp: r['WhatsApp'] || '',
+    email: r['E-mail'] || '',
+    ativo: r['Ativo'] || 'SIM',
+  }));
 }
 
 export async function fetchEntregas(): Promise<SheetDelivery[]> {
-  const data = await fetchAllSheetData();
-  return data
-    .filter(r => r['Cód. Pedido'] || r['pedidoId'])
-    .map((r, idx) => ({
-      id: String(idx + 1),
-      pedidoId: r['Cód. Pedido'] || '',
-      packageId: r['Cód. Rastreio'] || r['Cód. Pedido'] || '',
-      customerName: r['Cliente'] || '',
-      customerPhone: r['Telefone'] || '',
-      address: r['Endereço'] || '',
-      bairro: r['Bairro'] || '',
-      cep: r['CEP'] || '',
-      status: mapStatus(r['Status'] || 'pendente'),
-      rowIndex: idx + 3,
-    }));
+  const data = await fetchSheetData(DELIVERIES_SHEET_URL);
+  return data.map((r, idx) => ({
+    id: String(idx + 1),
+    pedidoId: r['Cód. Pedido'] || '',
+    packageId: r['Cód. Rastreio'] || '',
+    customerName: r['Nome Cliente'] || '',
+    customerPhone: r['Telefone Cliente'] || '',
+    address: r['Endereço Entrega'] || '',
+    bairro: r['Bairro'] || '',
+    cep: r['CEP'] || '',
+    status: mapStatus(r['Status'] || 'pendente'),
+    rowIndex: idx + 2,
+  }));
 }
 
-// ── Helpers de Status ──────────────────────────────────────────
+// ── Helpers ─────────────────────────────────────────────────────
 function mapStatus(s: string): SheetDelivery['status'] {
   const map: Record<string, SheetDelivery['status']> = {
     'pendente': 'pending',
@@ -106,25 +88,4 @@ function mapStatus(s: string): SheetDelivery['status'] {
     'insucesso': 'delayed',
   };
   return map[s?.toLowerCase()] || 'pending';
-}
-
-// ── Funções de Escrita (Importante!) ───────────────────────────
-/**
- * Para que estas funções funcionem, você precisará colar o código do 
- * Apps Script (enviado anteriormente) na sua planilha e colocar a URL aqui.
- */
-const APPS_SCRIPT_URL = "COLE_AQUI_A_URL_DO_SEU_APPS_SCRIPT_APOS_IMPLANTAR";
-
-export async function updateEntregaStatus(payload: any): Promise<void> {
-  if (APPS_SCRIPT_URL.includes("COLE_AQUI")) {
-    console.warn("URL do Apps Script não configurada. A escrita não funcionará.");
-    return;
-  }
-
-  await fetch(APPS_SCRIPT_URL, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload),
-  });
 }

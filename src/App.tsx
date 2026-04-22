@@ -35,7 +35,15 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [deliveries, setDeliveries] = useState<Delivery[]>(mockDeliveries);
   const [currentScreen, setCurrentScreen] = useState<'login' | 'driver' | 'manager' | 'customer'>('login');
-
+// CÓDIGO DE TESTE - Cole aqui:
+  useEffect(() => {
+    fetchUsuarios().then(dados => {
+      console.log("✅ Usuários da Planilha:", dados);
+    });
+    fetchEntregas().then(entregas => {
+      console.log("✅ Entregas da Planilha:", entregas);
+    });
+  }, []);
   const t = translations[lang];
 
   useEffect(() => {
