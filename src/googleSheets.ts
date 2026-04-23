@@ -1,7 +1,6 @@
-c/**
+/**
  * SILL - Sistema Inteligente de Logística Local
- * Integração com Google Sheets (Leitura e Escrita)
- * CORRIGIDO: Nomes das funções sincronizados com App.tsx
+ * Versão Final Corrigida - Sem erros de referência
  */
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNpjzwAH9VhS9pf-A7k5JQ8yDc3NLQq8nDOWZtuxfjXu8krWx34U42Gs0OC_NBg3U/exec";
@@ -9,7 +8,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNpjzwAH9VhS9p
 const USERS_SHEET_URL = "https://docs.google.com/spreadsheets/d/1O_gNcCvvf0fBfnY1Qs37T3n00EQB3AH4Auqm9PSgSig/gviz/tq?tqx=out:csv&sheet=USUÁRIOS";
 const DELIVERIES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1O_gNcCvvf0fBfnY1Qs37T3n00EQB3AH4Auqm9PSgSig/gviz/tq?tqx=out:csv&sheet=ENTREGAS";
 
-// 1. FUNÇÃO DE BUSCAR USUÁRIOS (Corrigida para fetchUsuarios)
+// 1. BUSCAR USUÁRIOS
 export const fetchUsuarios = async () => {
   try {
     const response = await fetch(USERS_SHEET_URL);
@@ -21,7 +20,7 @@ export const fetchUsuarios = async () => {
   }
 };
 
-// 2. FUNÇÃO DE BUSCAR ENTREGAS (Adicionada)
+// 2. BUSCAR ENTREGAS
 export const fetchEntregas = async () => {
   try {
     const response = await fetch(DELIVERIES_SHEET_URL);
@@ -33,7 +32,7 @@ export const fetchEntregas = async () => {
   }
 };
 
-// 3. FUNÇÃO DE SALVAR USUÁRIO
+// 3. SALVAR USUÁRIO (Escrita)
 export const saveUser = async (userData: any) => {
   try {
     await fetch(APPS_SCRIPT_URL, {
@@ -52,7 +51,7 @@ export const saveUser = async (userData: any) => {
   }
 };
 
-// 4. FUNÇÃO DE ATUALIZAR STATUS
+// 4. ATUALIZAR STATUS (Escrita)
 export const updateDeliveryStatus = async (pedidoId: string, status: string) => {
   try {
     await fetch(APPS_SCRIPT_URL, {
@@ -72,20 +71,27 @@ export const updateDeliveryStatus = async (pedidoId: string, status: string) => 
   }
 };
 
-// AUXILIAR PARA PROCESSAR CSV
+// AUXILIAR: PROCESSA O CSV DA PLANILHA (VERSÃO SEGURA)
 const processCSV = (csv: string) => {
-  if (!csv) return [];
+  if (!csv || !csv.includes('\n')) return [];
+  
   const lines = csv.split('\n');
   const result = [];
+  
+  // Pega os cabeçalhos e limpa aspas/espaços
   const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
 
   for (let i = 1; i < lines.length; i++) {
-    const obj: any = {};
-    const currentline = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
+    const rowText = lines[i].trim();
+    if (!rowText) continue;
 
-    if (currentline.length === headers.length) {
+    const obj: any = {};
+    const currentline = rowText.split(',').map(item => item.replace(/"/g, '').trim());
+
+    if (currentline.length >= headers.length) {
       for (let j = 0; j < headers.length; j++) {
-        obj[headers[j]] = currentline[j];
+        const headerName = headers[j];
+        obj[headerName] = currentline[j] || "";
       }
       result.push(obj);
     }
