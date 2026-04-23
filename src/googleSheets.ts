@@ -4,12 +4,11 @@
  */
 
 // Sua URL gerada no Google Apps Script
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzz2i1wFthbtMuHG6i6Zwzchr-KNWELLjOLXWnXN1aTkc-_maQCNDzRoEMTUXDVRELy/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNpjzwAH9VhS9pf-A7k5JQ8yDc3NLQq8nDOWZtuxfjXu8krWx34U42Gs0OC_NBg3U/exec";
 
 // URL da sua planilha para leitura (CSV)
-const USERS_SHEET_URL = "https://docs.google.com/spreadsheets/d/1X_mG7y9G6M3_sua_id_da_planilha/export?format=csv&gid=0";
-const DELIVERIES_SHEET_URL = "https://docs.google.com/spreadsheets/d/1X_mG7y9G6M3_sua_id_da_planilha/export?format=csv&gid=123456789";
-
+const USERS_SHEET_URL = "https://docs.google.com/spreadsheets/d/1O_gNcCvvf0fBfnY1Qs37T3n00EQB3AH4Auqm9PSgSig/gviz/tq?tqx=out:csv&sheet=USUÁRIOS";
+const DELIVERIES_SHEET_URL =  "https://docs.google.com/spreadsheets/d/1O_gNcCvvf0fBfnY1Qs37T3n00EQB3AH4Auqm9PSgSig/gviz/tq?tqx=out:csv&sheet=ENTREGAS";
 // Função para buscar usuários (Leitura)
 export const fetchUsers = async () => {
   try {
